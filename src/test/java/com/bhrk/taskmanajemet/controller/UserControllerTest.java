@@ -1,9 +1,9 @@
 package com.bhrk.taskmanajemet.controller;
 
-import com.bhrk.taskmanajemet.MockFactory.MockitoFactory;
+import com.bhrk.taskmanajemet.MockFactory.MockFactory;
+import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
 import com.bhrk.taskmanajemet.dto.UserRequestDTO;
 import com.bhrk.taskmanajemet.dto.UserResponseDTO;
-import com.bhrk.taskmanajemet.entity.User;
 import com.bhrk.taskmanajemet.handler.GlobalExceptionHandler;
 import com.bhrk.taskmanajemet.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,12 +12,19 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import tools.jackson.databind.ObjectMapper;
 
 
+import java.time.LocalDate;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -43,15 +50,19 @@ public class UserControllerTest {
     void setUp() {
         this.mockMvc = MockMvcBuilders
                 .standaloneSetup(controller)
+                .setCustomArgumentResolvers(
+                        new PageableHandlerMethodArgumentResolver()
+                )
                 .setControllerAdvice(GlobalExceptionHandler.class)
+                .setValidator(new LocalValidatorFactoryBean())
                 .build();
     }
 
     @Test
     void testCreateUser() throws Exception {
         //given
-        UserRequestDTO userRequest = MockitoFactory.buildUserRequestDto();
-        UserResponseDTO userResponse = MockitoFactory.buildUserResponse();
+        UserRequestDTO userRequest = MockFactory.buildUserRequestDto();
+        UserResponseDTO userResponse = MockFactory.buildUserResponse();
 
         //when
         when(service.create(any(UserRequestDTO.class))).thenReturn(userResponse);
@@ -70,29 +81,207 @@ public class UserControllerTest {
     }
 
     @Test
-    void testGetUsers() throws Exception{
-        //given
-        List<UserResponseDTO> users = MockitoFactory.buildUserResponseList();
-        //when
-        when(service.findAllUser()).thenReturn(users);
-        //then
-        mockMvc.perform(
-                get("/users")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON)
-                        .content(mapper.writeValueAsString(users))
-            ).andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value("1"))
-                .andExpect(jsonPath("$[0].name").value("Jorge"))
-                .andExpect(jsonPath("$[0].email").value("jorge@ejemplo.com"));
+    void shouldReturn400WhenNameIsNull() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name(null)
+                .email("jorge@ejemplo.com")
+                .password("password123")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
 
-        verify(service).findAllUser();
-        }
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("name: This field is required"));
+
+        verify(service, never()).create(any());
+    }
+
+    @Test
+    void shouldReturn400WhenNameIsTooShort() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("abc")
+                .email("jorge@ejemplo.com")
+                .password("password123")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("name: Password should have at least 8 characters."));
+
+        verify(service, never()).create(any());
+    }
+    @Test
+    void shouldReturn400WhenEmailIsNull() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email(null)
+                .password("password123")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("email: This field is required"));
+
+        verify(service, never()).create(any());
+    }
+
+    @Test
+    void shouldReturn400WhenEmailIsInvalid() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email("correo-invalido")
+                .password("password123")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("email: The email format is invalid"));
+
+        verify(service, never()).create(any());
+    }
+    @Test
+    void shouldReturn400WhenPasswordIsNull() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email("jorge@ejemplo.com")
+                .password(null)
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("password: This field is required"));
+
+        verify(service, never()).create(any());
+    }
+
+    @Test
+    void shouldReturn400WhenPasswordTooShort() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email("jorge@ejemplo.com")
+                .password("12345")
+                .birthDate(LocalDate.of(2000, 1, 1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("password: Password should have at least 8 characters."));
+
+        verify(service, never()).create(any());
+    }
+    @Test
+    void shouldReturn400WhenBirthDateIsNull() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email("jorge@ejemplo.com")
+                .password("password123")
+                .birthDate(null)
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("birthDate: This field is required"));
+
+        verify(service, never()).create(any());
+    }
+    @Test
+    void shouldReturn400WhenBirthDateIsInFuture() throws Exception {
+        UserRequestDTO request = UserRequestDTO.builder()
+                .name("Jorge")
+                .email("jorge@ejemplo.com")
+                .password("password123")
+                .birthDate(LocalDate.now().plusDays(1))
+                .build();
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("birthDate: Birth Date should be in the past"));
+
+        verify(service, never()).create(any());
+    }
+
+    @Test
+    void shouldReturnPagedUsers() throws Exception {
+        // given
+        Pageable pageable = PageRequest.of(0, 2);
+
+        UserResponseDTO user1 = UserResponseDTO.builder()
+                .id(1)
+                .name("Jorge")
+                .email("jorge@ejemplo.com")
+                .build();
+
+        UserResponseDTO user2 = UserResponseDTO.builder()
+                .id(2)
+                .name("Juan")
+                .email("juan@ejemplo.com")
+                .build();
+
+        Page<UserResponseDTO> page = new PageImpl<>(
+                List.of(user1, user2),
+                pageable,
+                2
+        );
+
+        when(service.findAllUser(any(Pageable.class)))
+                .thenReturn(page);
+
+        // when & then
+        mockMvc.perform(get("/users")
+                        .param("page", "0")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(1))
+                .andExpect(jsonPath("$.content[0].email").value("jorge@ejemplo.com"))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1));
+
+        verify(service).findAllUser(any(Pageable.class));
+    }
+
     @Test
     void testGetUserById() throws Exception{
         //given
         int userId = 1 ;
-        UserResponseDTO user = MockitoFactory.buildUserResponse();
+        UserResponseDTO user = MockFactory.buildUserResponse();
         //when
         when(service.findById(userId)).thenReturn(user);
         //then
@@ -111,10 +300,9 @@ public class UserControllerTest {
     void testUpDateUser() throws Exception{
         //given
         int userId = 1 ;
-        UserResponseDTO userResponse = MockitoFactory.buildUserResponse();
-        UserRequestDTO userRequest = MockitoFactory.buildUserRequestDto();
+        UserResponseDTO userResponse = MockFactory.buildUserResponse();
         //when
-        when(service.updateUser(anyInt(),any(UserRequestDTO.class))).thenReturn(userResponse);
+        when(service.updateUser(anyInt(),any(UserInfoRequestDTO.class))).thenReturn(userResponse);
         //then
         mockMvc.perform(
                 put("/users/{userId}",userId)
@@ -125,7 +313,7 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.id").value("1"))
                 .andExpect(jsonPath("$.name").value("Jorge"))
                 .andExpect(jsonPath("$.email").value("jorge@ejemplo.com"));
-        verify(service).updateUser(anyInt(),any(UserRequestDTO.class));
+        verify(service).updateUser(anyInt(),any(UserInfoRequestDTO.class));
 
     }
     @Test

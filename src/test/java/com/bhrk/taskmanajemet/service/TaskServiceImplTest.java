@@ -1,6 +1,6 @@
 package com.bhrk.taskmanajemet.service;
 
-import com.bhrk.taskmanajemet.MockFactory.MockitoFactory;
+import com.bhrk.taskmanajemet.MockFactory.MockFactory;
 import com.bhrk.taskmanajemet.dto.TaskRequestDTO;
 import com.bhrk.taskmanajemet.dto.TaskResponseDTO;
 import com.bhrk.taskmanajemet.entity.Task;
@@ -16,6 +16,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.time.LocalDate;
@@ -53,10 +57,10 @@ public class TaskServiceImplTest {
     void shouldCreateTask(){
         //given
         int id = 1;
-        Task mockTask = MockitoFactory.buildTask();
-        TaskResponseDTO mockTaskResponse = MockitoFactory.buildTaskResponseDto();
-        TaskRequestDTO mockTaskRequest = MockitoFactory.buildTaskRequestDto();
-        User user = MockitoFactory.buildUser();
+        Task mockTask = MockFactory.buildTask();
+        TaskResponseDTO mockTaskResponse = MockFactory.buildTaskResponseDto();
+        TaskRequestDTO mockTaskRequest = MockFactory.buildTaskRequestDto();
+        User user = MockFactory.buildUser();
         //when
         when(userRepository.findById(1)).thenReturn(Optional.ofNullable(user));
         when(taskRepository.save(any(Task.class))).thenReturn(mockTask);
@@ -66,14 +70,12 @@ public class TaskServiceImplTest {
                 TaskResponseDTO::getId,
                 TaskResponseDTO::getDescription,
                 TaskResponseDTO::getIsDone,
-                TaskResponseDTO::getTargetDate,
-                TaskResponseDTO::getUserId
+                TaskResponseDTO::getTargetDate
         ).containsExactly(
                 mockTaskResponse.getId(),
                 mockTaskResponse.getDescription(),
                 mockTaskResponse.getIsDone(),
-                mockTaskResponse.getTargetDate(),
-                mockTaskResponse.getUserId()
+                mockTaskResponse.getTargetDate()
         );
         verify(userRepository).findById(id);
         verify(taskRepository).save(any(Task.class));
@@ -83,7 +85,7 @@ public class TaskServiceImplTest {
     void shouldCreateTaskWhenUserIdNotExist(){
         //given
         int id = 5;
-        TaskRequestDTO task = MockitoFactory.buildTaskRequestDto();
+        TaskRequestDTO task = MockFactory.buildTaskRequestDto();
         //when
         when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
         //then
@@ -93,77 +95,124 @@ public class TaskServiceImplTest {
     }
 
     @Test
-    void shouldFindAll(){
-        //given
-        int userId = 1;
-        User user = MockitoFactory.buildUser();
-        List<Task> mockList = MockitoFactory.buildTaskList();
+    void shouldFindAllTasksByUserId() {
+        // given
+        Integer userId = 1;
+        Pageable pageable = PageRequest.of(0, 2);
 
-        TaskResponseDTO dto1 = TaskResponseDTO.builder()
-                .id(1)
-                .description("Aprobar modelo de UX/UI figma")
-                .isDone(false)
-                .targetDate(LocalDate.parse("2026-04-13"))
-                .userId(1)
-                .build();
-        //when
-        when(userRepository.findById(1)).thenReturn(Optional.ofNullable(user));
-        when(taskRepository.findAll()).thenReturn(mockList);
-        //then
-        List<TaskResponseDTO> results = taskService.findAll(userId);
-        var result = results.getFirst();
-        assertNotNull(results);
-        assertEquals(1, results.size());
-        assertThat(result).extracting(
-                TaskResponseDTO::getId,
-                TaskResponseDTO::getDescription,
-                TaskResponseDTO::getIsDone,
-                TaskResponseDTO::getTargetDate,
-                TaskResponseDTO::getUserId
-        ).containsExactly(
-          dto1.getId(),
-          dto1.getDescription(),
-          dto1.getIsDone(),
-          dto1.getTargetDate(),
-          dto1.getUserId()
+        User user = MockFactory.buildUser();
+        user.setId(userId);
+
+        Task task1 = MockFactory.buildTask();
+        Task task2 = MockFactory.buildTask();
+
+        Page<Task> taskPage = new PageImpl<>(
+                List.of(task1, task2),
+                pageable,
+                2
         );
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(taskRepository.findAll(pageable))
+                .thenReturn(taskPage);
+
+        // when
+        Page<TaskResponseDTO> results = taskService.findAll(userId,pageable);
+
+        var result = results.toList().getFirst();
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(results.getSize()).isEqualTo(2);
+
+        assertThat(result)
+                .extracting(
+                        TaskResponseDTO::getId,
+                        TaskResponseDTO::getDescription,
+                        TaskResponseDTO::getIsDone,
+                        TaskResponseDTO::getTargetDate
+                        )
+                .containsExactly(
+                        task1.getId(),
+                        task1.getDescription(),
+                        task1.getIsDone(),
+                        task1.getTargetDate()
+                );
+
+        verify(userRepository).findById(userId);
+        verify(taskRepository).findAll(pageable);
 
     }
     @Test
     void shouldFindAllWhenUserNOtExist(){
         //given
         int id = 5;
+        Pageable pageable = PageRequest.of(0, 2);
         //when
         when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
         //then
-        var error = assertThrows(NotFoundException.class,() -> taskService.findAll(id));
+        var error = assertThrows(NotFoundException.class,() -> taskService.findAll(id,pageable));
         assertEquals("User dont Exist.",error.getMessage());
         verify(userRepository).findById(id);
     }
     @Test
     void shouldFindById() {
-        //given
+        // given
         int userId = 1;
         int taskId = 1;
-        User user = MockitoFactory.buildUser();
-        Task task = MockitoFactory.buildTask();
-        TaskResponseDTO taskResponse = MockitoFactory.buildTaskResponseDto();
 
-        //when
-        when(userRepository.findById(anyInt())).thenReturn(Optional.ofNullable(user));
-        when(taskRepository.findById(anyInt())).thenReturn(Optional.ofNullable(task));
-        //then
+        User user = MockFactory.buildUser();
+        user.setId(userId);
+
+        Task task = MockFactory.buildTask();
+        task.setId(taskId);
+        task.setUser(user); // SOLO para el mapper
+
+        when(userRepository.findById(userId))
+                .thenReturn(Optional.of(user));
+
+        when(taskRepository.findById(taskId))
+                .thenReturn(Optional.of(task));
+
+        // when
         TaskResponseDTO result = taskService.findById(userId, taskId);
 
+        // then
         assertNotNull(result);
         assertEquals(taskId, result.getId());
         assertEquals("Aprobar modelo de UX/UI figma", result.getDescription());
         assertEquals(userId, result.getUserId());
 
-
         verify(userRepository).findById(userId);
         verify(taskRepository).findById(taskId);
 
+    }
+    @Test
+    void shouldFindByIdWhenIdUserNotExist() {
+        //given
+        Integer userId = 5;
+        Integer taskId = 5;
+        //when
+        when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
+        //then
+        var error = assertThrows(NotFoundException.class, () -> taskService.findById(userId,taskId));
+        assertEquals("User dont Exist.", error.getMessage());
+        verify(userRepository).findById(userId);
+    }
+    @Test
+    void shouldFindByIdWhenIdTaskNotExist() {
+        //given
+        Integer userId = 5;
+        Integer taskId = 5;
+        User user = MockFactory.buildUser();
+        //when
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+        //then
+        var error = assertThrows(NotFoundException.class, () -> taskService.findById(userId,taskId));
+        assertEquals("Task not found", error.getMessage());
+        verify(userRepository).findById(userId);
+        verify(taskRepository).findById(taskId);
     }
 
     @Test
@@ -171,19 +220,18 @@ public class TaskServiceImplTest {
         // Arrange
         int userId = 1;
         int taskId = 1;
-        User user = MockitoFactory.buildUser();
+        User user = MockFactory.buildUser();
         TaskRequestDTO updateRequest = TaskRequestDTO.builder()
                 .description("Descripción actualizada por Juan")
                 .isDone(true)
                 .targetDate(LocalDate.of(2026,8,12))
                 .build();
-        Task existingTask = MockitoFactory.buildTask();
+        Task existingTask = MockFactory.buildTask();
         Task updatedTask = Task.builder()
                 .id(taskId)
                 .description("Descripción actualizada por Juan")
                 .isDone(true)
                 .targetDate(existingTask.getTargetDate())
-                .user(existingTask.getUser())
                 .build();
 
         TaskResponseDTO expectedResponse = TaskResponseDTO.builder()
@@ -202,7 +250,6 @@ public class TaskServiceImplTest {
         assertNotNull(result);
         assertEquals(taskId, result.getId());
         assertEquals("Descripción actualizada por Juan", result.getDescription());
-        assertEquals(1, result.getUserId());
 
         verify(taskRepository).save(any(Task.class));
     }
@@ -211,7 +258,7 @@ public class TaskServiceImplTest {
         //given
         int userId = 1;
         int taskId = 1;
-        TaskRequestDTO task = MockitoFactory.buildTaskRequestDto();
+        TaskRequestDTO task = MockFactory.buildTaskRequestDto();
         //when
         when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
         //then
@@ -225,8 +272,8 @@ public class TaskServiceImplTest {
         //given
         int userId = 1;
         int taskId = 1;
-        TaskRequestDTO task = MockitoFactory.buildTaskRequestDto();
-        User user = MockitoFactory.buildUser();
+        TaskRequestDTO task = MockFactory.buildTaskRequestDto();
+        User user = MockFactory.buildUser();
         //when
         when(userRepository.findById(anyInt())).thenReturn(Optional.ofNullable(user));
         when(taskRepository.findById(anyInt())).thenReturn(Optional.empty());
@@ -236,37 +283,6 @@ public class TaskServiceImplTest {
         verify(taskRepository).findById(taskId);
     }
 
-    @Test
-    void shouldFindByIdWhenUserIdNotExist(){
-        //given
-        int userId = 1;
-        int taskId = 1;
-        //when
-        when(userRepository.findById(anyInt())).thenReturn(Optional.empty());
-
-        //then
-        var error = assertThrows(NotFoundException.class,() -> taskService.findById(userId,taskId));
-        assertEquals("User dont Exist.",error.getMessage());
-        verify(userRepository).findById(userId);
-
-    }
-
-    @Test
-    void shouldFindByIdWhenTaskIdNotExist(){
-        //given
-        int userId = 1;
-        int taskId = 1;
-        User user = MockitoFactory.buildUser();
-        //when
-        when(userRepository.findById(anyInt())).thenReturn(Optional.ofNullable(user));
-        when(taskRepository.findById(anyInt())).thenReturn(Optional.empty());
-        //then
-        var error = assertThrows(NotFoundException.class,() -> taskService.findById(userId,taskId));
-        assertEquals("Task not found",error.getMessage());
-        verify(userRepository).findById(userId);
-        verify(taskRepository).findById(taskId);
-
-    }
 
     @Test
     void shouldDeleteTask(){
@@ -278,7 +294,5 @@ public class TaskServiceImplTest {
         //then
         verify(taskRepository,times(1)).deleteById(taskId);
     }
-
-
 
 }

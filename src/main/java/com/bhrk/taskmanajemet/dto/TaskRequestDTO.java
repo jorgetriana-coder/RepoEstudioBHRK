@@ -14,7 +14,7 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class TaskRequestDTO {
 
-    @Size(min = 5, message = "Description should have at least 2 letters.")
+    @Size(min = 5, message = "Description should have at least 5 letters.")
     @NotNull(message = "This field is required")
     private String description;
 

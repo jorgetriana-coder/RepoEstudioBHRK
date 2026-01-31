@@ -1,13 +1,12 @@
 package com.bhrk.taskmanajemet.service;
 
-import com.bhrk.taskmanajemet.MockFactory.MockitoFactory;
+import com.bhrk.taskmanajemet.MockFactory.MockFactory;
+import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
 import com.bhrk.taskmanajemet.dto.UserRequestDTO;
 import com.bhrk.taskmanajemet.dto.UserResponseDTO;
-import com.bhrk.taskmanajemet.entity.Task;
 import com.bhrk.taskmanajemet.entity.User;
 import com.bhrk.taskmanajemet.exceptions.NotFoundException;
 import com.bhrk.taskmanajemet.exceptions.ResourceDuplicateException;
-import com.bhrk.taskmanajemet.mapper.UserMapper;
 import com.bhrk.taskmanajemet.mapper.UserMapperImpl;
 import com.bhrk.taskmanajemet.repository.UserRepository;
 import com.bhrk.taskmanajemet.service.impl.UserServiceImpl;
@@ -16,18 +15,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 
-import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +33,6 @@ import java.util.Optional;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @Import({UserMapperImpl.class})
@@ -57,36 +54,42 @@ public class UserServiceImplTest {
         this.repository = mock(UserRepository.class);
         this.userService = new UserServiceImpl(mapper, repository, new BCryptPasswordEncoder());
     }
-//should TDD -mantras del tdd rojo: prueba falla verder: prueba pasa
-
-// probar como funciona encoder, probar cosas rpovenientes de librerias externas no tiene sentido a menos de que el comportamiento interfiera directmaente
 
     @Test
     void shouldCreateUser() {
-        //given
-        UserRequestDTO mockUserRequest = MockitoFactory.buildUserRequestDto();
-        User mockUser = MockitoFactory.buildUser();
-        //when
-        when(repository.existsByEmail(Mockito.eq(mockUserRequest.getEmail()))).thenReturn(false);
-        when(repository.save(any(User.class))).thenReturn(mockUser);
-        //then
-        UserResponseDTO userCreated = userService.create(mockUserRequest);
-        assertEquals(1, userCreated.getId());
-        assertEquals("Jorge", userCreated.getName());
-        assertEquals("jorge@ejemplo.com", userCreated.getEmail());
+        // given
+        UserRequestDTO request = MockFactory.buildUserRequestDto();
+        UserResponseDTO expectedResponse = MockFactory.buildUserResponse();
 
-        verify(repository).existsByEmail(anyString());
+        when(repository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(repository.save(any(User.class)))
+                .thenAnswer(invocation -> {
+                    User user = invocation.getArgument(0);
+                    user.setId(1);
+                    return user;
+                });
+
+        // when
+        UserResponseDTO result = userService.create(request);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(expectedResponse.getId());
+        assertThat(result.getName()).isEqualTo(expectedResponse.getName());
+        assertThat(result.getEmail()).isEqualTo(expectedResponse.getEmail());
+
+        verify(repository).existsByEmail(request.getEmail());
         verify(repository).save(any(User.class));
-
     }
+
     @Test
-    void shouldCreateUserWhenEmailExist(){
+    void shouldCreateUserWhenEmailExist() {
         //given
-        UserRequestDTO mockUserRequest = MockitoFactory.buildUserRequestDto();
+        UserRequestDTO mockUserRequest = MockFactory.buildUserRequestDto();
         //when
         when(repository.existsByEmail(Mockito.eq(mockUserRequest.getEmail()))).thenReturn(true);
         //then
-        var error= assertThrows(ResourceDuplicateException.class, () -> userService.create(mockUserRequest));
+        var error = assertThrows(ResourceDuplicateException.class, () -> userService.create(mockUserRequest));
         assertEquals("El email ya está registrado", error.getMessage());
         verify(repository).existsByEmail(mockUserRequest.getEmail());
     }
@@ -94,105 +97,112 @@ public class UserServiceImplTest {
 
     @Test
     void shouldFindAll() {
-        //given
-        List<User> mockUsers = MockitoFactory.buildUsersList();
-        //when
-        when(repository.findAll()).thenReturn(mockUsers);
-        //then
-        List<UserResponseDTO> users = userService.findAllUser();
-        assertEquals(1, users.size());
-        verify(repository).findAll();
-        var responses = users.getFirst();
-        assertThat(responses)
-                .extracting(
-                        UserResponseDTO::getId,
-                        UserResponseDTO::getName,
-                        UserResponseDTO::getEmail
-                ).containsExactly(
-                        1,
-                        "Jorge",
-                        "jorge@ejemplo.com"
+        // given
+        Pageable pageable = PageRequest.of(0, 2);
+
+        User user1 = MockFactory.buildUser();
+        User user2 = MockFactory.buildUser();
+
+        List<User> users = List.of(user1, user2);
+        Page<User> userPage = new PageImpl<>(users, pageable, users.size());
+
+        when(repository.findAll(pageable)).thenReturn(userPage);
+
+        // when
+        Page<UserResponseDTO> results = userService.findAllUser(pageable);
+        var result = results.toList().getFirst();
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result)
+                .extracting(UserResponseDTO::getEmail,
+                        UserResponseDTO::getName)
+                .containsExactly(
+                        user1.getEmail(),
+                        user1.getName()
                 );
+
+        verify(repository).findAll(pageable);
     }
 
     @Test
     void shouldFindById() {
         //given
         Integer id = 1;
-        User user = MockitoFactory.buildUser();
+        User user = MockFactory.buildUser();
         //when
-        when(repository.findById(anyInt())).thenReturn(Optional.ofNullable(user));
+        when(repository.findById(id)).thenReturn(Optional.ofNullable(user));
         //then
-        UserResponseDTO userDB = userService.findById(id);
-        assertEquals(1, userDB.getId());
-        assertEquals("jorge@ejemplo.com", userDB.getEmail());
-        assertEquals("Jorge", userDB.getName());
+        UserResponseDTO result = userService.findById(id);
+        assertEquals(1, result.getId());
+        assertEquals("jorge@ejemplo.com", result.getEmail());
+        assertEquals("Jorge", result.getName());
 
         verify(repository).findById(id);
     }
 
     @Test
-    void shouldFindByIdWhenIdNotExist(){
+    void shouldFindByIdWhenIdNotExist() {
         //given
         Integer id = 5;
         //when
         when(repository.findById(anyInt())).thenReturn(Optional.empty());
         //then
-        var error = assertThrows(NotFoundException.class,() -> userService.findById(id));
-        assertEquals("User not found",error.getMessage());
+        var error = assertThrows(NotFoundException.class, () -> userService.findById(id));
+        assertEquals("User not found", error.getMessage());
         verify(repository).findById(id);
     }
 
     @Test
     void shouldUpdate(){
-        //given
-        Integer id = 1;
-        UserRequestDTO userRequestDTO = MockitoFactory.buildUserRequestDto();
-        User mockUser = MockitoFactory.buildUser();
+        // given
+        Integer userId = 1;
 
-        mockUser.setName(userRequestDTO.getName());
-        mockUser.setEmail(userRequestDTO.getEmail());
-        mockUser.setPassword(userRequestDTO.getPassword());
-        mockUser.setBirthDate(userRequestDTO.getBirthDate());
+        User existingUser = MockFactory.buildUser();
+        existingUser.setId(userId);
+        existingUser.setName("Jorge");
+        existingUser.setEmail("jorge@ejemplo.com");
 
-        //when
-        when(repository.findById(1)).thenReturn(Optional.of(mockUser));
-        when(repository.save(any(User.class))).thenReturn(mockUser);
+        UserInfoRequestDTO updateRequest = UserInfoRequestDTO.builder()
+                .name("Jorge Updated")
+                .email("jorge@ejemplo.com")
+                .build();
 
-        //then
-        var response = userService.updateUser(id,userRequestDTO);
-        assertThat(response).extracting(
-                UserResponseDTO::getId,
-                UserResponseDTO::getName,
-                UserResponseDTO::getEmail
-        ).containsExactly(
-                id,
-                mockUser.getName(),
-                mockUser.getEmail()
-        );
+        when(repository.findById(userId)).thenReturn(Optional.of(existingUser));
+        when(repository.save(existingUser)).thenReturn(existingUser);
 
-        verify(repository).findById(id);
-        verify(repository).save(any(User.class));
+        // when
+        UserResponseDTO result = userService.updateUser(userId, updateRequest);
+
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(userId);
+        assertThat(result.getName()).isEqualTo("Jorge Updated");
+        assertThat(result.getEmail()).isEqualTo("jorge@ejemplo.com");
+
+        verify(repository).findById(userId);
+        verify(repository).save(existingUser);
     }
 
     @Test
-    void shouldUpdateWhenUserNotExist(){
+    void shouldUpdateWhenUserNotExist() {
         //given
         Integer id = 5;
-        UserRequestDTO userRequest = MockitoFactory.buildUserRequestDto();
+        UserInfoRequestDTO userRequest = MockFactory.buildUserInfoRequestDTO();
         //when
         when(repository.findById(anyInt())).thenReturn(Optional.empty());
         //then
-        var error = assertThrows(NotFoundException.class,() -> userService.updateUser(id,userRequest));
-        assertEquals("User not found",error.getMessage());
+        var error = assertThrows(NotFoundException.class, () -> userService.updateUser(id, userRequest));
+        assertEquals("User not found", error.getMessage());
         verify(repository).findById(id);
     }
+
     @Test
-    void shouldDeleteUser(){
+    void shouldDeleteUser() {
         Integer id = 1;
         userService.deleteUser(id);
 
-        verify(repository,times(1)).deleteById(id);
+        verify(repository, times(1)).deleteById(id);
     }
 
 }

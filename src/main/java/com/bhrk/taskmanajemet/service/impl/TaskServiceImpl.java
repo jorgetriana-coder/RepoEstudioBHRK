@@ -10,6 +10,9 @@ import com.bhrk.taskmanajemet.repository.TaskRepository;
 import com.bhrk.taskmanajemet.repository.UserRepository;
 import com.bhrk.taskmanajemet.service.TaskService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,6 +24,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final TaskMapper mapper;
+    Pageable pageable = PageRequest.of(0,10);
 
 
     @Override
@@ -29,19 +33,16 @@ public class TaskServiceImpl implements TaskService {
                 () -> new NotFoundException("User dont Exist"));
         Task entity = mapper.toEntity(taskRequestDTO);
         entity.setUser(userFound);
-        Task task = taskRepository.save(entity);
-        TaskResponseDTO taskResponseDTO = mapper.toResponse(task);
-        taskResponseDTO.setUserId(userId);
-        return taskResponseDTO;
+        Task taskSaved = taskRepository.save(entity);
+        return mapper.toResponse(taskSaved);
     }
 
     @Override
-    public List<TaskResponseDTO> findAll(Integer userId){
+    public Page<TaskResponseDTO> findAll(Integer userId,Pageable pageable){
         userRepository.findById(userId).orElseThrow(()
                 -> new NotFoundException("User dont Exist."));
-        List<Task> tasks = taskRepository.findAll();
-        List<TaskResponseDTO> tasksList =tasks.stream().map(mapper::toResponse).toList();
-        return tasksList;
+        Page<Task> tasks = taskRepository.findAll(pageable);
+        return tasks.map(mapper::toResponse);
     }
 
     @Override
@@ -50,8 +51,7 @@ public class TaskServiceImpl implements TaskService {
                 -> new NotFoundException("User dont Exist."));
         Task taskFound = taskRepository.findById(taskId).orElseThrow(
                 () -> new NotFoundException("Task not found"));
-        TaskResponseDTO taskResponse = mapper.toResponse(taskFound);
-        return taskResponse;
+        return mapper.toResponse(taskFound);
     }
 
     @Override
