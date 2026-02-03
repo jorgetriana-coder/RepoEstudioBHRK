@@ -64,7 +64,12 @@ public class MockFactory {
                 .build();
 
     }
-
+    public static UserChangePasswordDTO buildChangePassword(){
+        return UserChangePasswordDTO.builder()
+                .password("12345678")
+                .newPassword("87654321")
+                .build();
+    }
     public static Task buildTask(){
         return Task.builder()
                 .id(1)
@@ -75,4 +80,7 @@ public class MockFactory {
     }
 
 
+    public static UserChangePasswordResponseDTO buildUserChangePasswordResponseDTO() {
+        return new UserChangePasswordResponseDTO("Password change accepted");
+    }
 }

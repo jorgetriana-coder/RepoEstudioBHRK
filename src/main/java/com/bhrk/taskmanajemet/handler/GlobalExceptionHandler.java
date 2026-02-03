@@ -1,8 +1,10 @@
 package com.bhrk.taskmanajemet.handler;
 
 import com.bhrk.taskmanajemet.dto.error.BaseError;
+import com.bhrk.taskmanajemet.exceptions.BabRequestException;
 import com.bhrk.taskmanajemet.exceptions.NotFoundException;
 import com.bhrk.taskmanajemet.exceptions.ResourceDuplicateException;
+import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -20,6 +22,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<BaseError> handleResourceNotFound(NotFoundException ex) {
         HttpStatus status = HttpStatus.NOT_FOUND;
+
+        BaseError error = BaseError.builder()
+                .timestamp(LocalDateTime.now())
+                .status(status.value())
+                .message(ex.getMessage())
+                .build();
+
+        return new ResponseEntity<>(error, status);
+    }
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<BaseError> handleBadRequest(BabRequestException ex) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
 
         BaseError error = BaseError.builder()
                 .timestamp(LocalDateTime.now())

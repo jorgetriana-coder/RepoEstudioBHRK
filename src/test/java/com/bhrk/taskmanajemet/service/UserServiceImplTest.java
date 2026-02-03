@@ -1,20 +1,20 @@
 package com.bhrk.taskmanajemet.service;
 
 import com.bhrk.taskmanajemet.MockFactory.MockFactory;
-import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserResponseDTO;
+import com.bhrk.taskmanajemet.dto.*;
 import com.bhrk.taskmanajemet.entity.User;
 import com.bhrk.taskmanajemet.exceptions.NotFoundException;
 import com.bhrk.taskmanajemet.exceptions.ResourceDuplicateException;
 import com.bhrk.taskmanajemet.mapper.UserMapperImpl;
 import com.bhrk.taskmanajemet.repository.UserRepository;
 import com.bhrk.taskmanajemet.service.impl.UserServiceImpl;
+import org.apache.coyote.BadRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.mockito.InjectMocks;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
@@ -195,6 +195,81 @@ public class UserServiceImplTest {
         var error = assertThrows(NotFoundException.class, () -> userService.updateUser(id, userRequest));
         assertEquals("User not found", error.getMessage());
         verify(repository).findById(id);
+    }
+
+    @Test
+    void shouldUpdatePassword() throws BadRequestException {
+        Integer userId = 1;
+
+        BCryptPasswordEncoder realEncoder = new BCryptPasswordEncoder();
+
+        User user = User.builder()
+                .id(userId)
+                .password(realEncoder.encode("oldPassword"))
+                .build();
+
+        UserChangePasswordDTO dto = UserChangePasswordDTO.builder()
+                .password("oldPassword")
+                .newPassword("newPassword123")
+                .build();
+
+        when(repository.findById(userId)).thenReturn(Optional.of(user));
+
+        UserChangePasswordResponseDTO response =
+                userService.updatePassword(userId, dto);
+
+        assertEquals("The password has been changed.", response.message());
+        assertTrue(realEncoder.matches("newPassword123", user.getPassword()));
+
+        verify(repository).save(user);
+
+    }
+
+    @Test
+    void ShouldUpdatePasswordWhenUserNotExist(){
+        Integer userId = 99;
+
+        UserChangePasswordDTO dto = UserChangePasswordDTO.builder()
+                .password("oldPassword")
+                .newPassword("newPassword123")
+                .build();
+
+        when(repository.findById(userId)).thenReturn(Optional.empty());
+
+        NotFoundException exception = assertThrows(
+                NotFoundException.class,
+                () -> userService.updatePassword(userId, dto)
+        );
+
+        assertEquals("User not found", exception.getMessage());
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void shouldUpdatePasswordWhenPasswordIncorrect(){
+        Integer userId = 1;
+
+        BCryptPasswordEncoder realEncoder = new BCryptPasswordEncoder();
+
+        User user = User.builder()
+                .id(userId)
+                .password(realEncoder.encode("correctPassword"))
+                .build();
+
+        UserChangePasswordDTO dto = UserChangePasswordDTO.builder()
+                .password("wrongPassword")
+                .newPassword("newPassword123")
+                .build();
+
+        when(repository.findById(userId)).thenReturn(Optional.of(user));
+
+        BadRequestException exception = assertThrows(
+                BadRequestException.class,
+                () -> userService.updatePassword(userId, dto)
+        );
+
+        assertEquals("This Password it's incorrect", exception.getMessage());
+        verify(repository, never()).save(any());
     }
 
     @Test

@@ -1,11 +1,10 @@
 package com.bhrk.taskmanajemet.controller;
 
-import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserResponseDTO;
+import com.bhrk.taskmanajemet.dto.*;
 import com.bhrk.taskmanajemet.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -41,9 +40,21 @@ public class UserController {
     }
 
     @PutMapping("/users/{userId}")
-    ResponseEntity<UserResponseDTO> updateInfoUser(@Valid @PathVariable Integer userId, @RequestBody UserInfoRequestDTO userInfo) {
+    ResponseEntity<UserResponseDTO> updateInfoUser(
+            @Valid
+            @PathVariable Integer userId,
+            @RequestBody UserInfoRequestDTO userInfo) {
         UserResponseDTO userUpDate = userService.updateUser(userId, userInfo);
         return ResponseEntity.status(HttpStatus.OK).body(userUpDate);
+    }
+
+    @PatchMapping("/users/{userId}")
+    ResponseEntity<UserChangePasswordResponseDTO> updateInfoUser(
+            @PathVariable Integer userId,
+            @Valid
+            @RequestBody UserChangePasswordDTO userPassword) throws BadRequestException {
+        UserChangePasswordResponseDTO userPassWordUpDate = userService.updatePassword(userId, userPassword);
+        return ResponseEntity.status(HttpStatus.OK).body(userPassWordUpDate);
     }
 
     @DeleteMapping("/users/{userId}")

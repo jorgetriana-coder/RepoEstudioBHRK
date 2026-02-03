@@ -15,7 +15,7 @@ import java.time.LocalDate;
 public class UserRequestDTO {
 
     @NotNull(message = "This field is required")
-    @Size(min = 5, message = "Password should have at least 8 characters.")
+    @Size(min = 5, message = "Name should have at least 5 characters.")
     private String name;
 
     @NotNull(message = "This field is required")

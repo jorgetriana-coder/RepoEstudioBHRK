@@ -1,9 +1,7 @@
 package com.bhrk.taskmanajemet.controller;
 
 import com.bhrk.taskmanajemet.MockFactory.MockFactory;
-import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserResponseDTO;
+import com.bhrk.taskmanajemet.dto.*;
 import com.bhrk.taskmanajemet.handler.GlobalExceptionHandler;
 import com.bhrk.taskmanajemet.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -115,7 +113,7 @@ public class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message")
-                        .value("name: Password should have at least 8 characters."));
+                        .value("name: Name should have at least 5 characters."));
 
         verify(service, never()).create(any());
     }
@@ -316,6 +314,112 @@ public class UserControllerTest {
         verify(service).updateUser(anyInt(),any(UserInfoRequestDTO.class));
 
     }
+
+    @Test
+    void testUpDatePassword() throws Exception{
+        //given
+        int userId = 1 ;
+        UserChangePasswordResponseDTO userResponse = MockFactory.buildUserChangePasswordResponseDTO();
+        UserChangePasswordDTO dto = MockFactory.buildChangePassword();
+        //when
+        when(service.updatePassword(anyInt(),any(UserChangePasswordDTO.class))).thenReturn(userResponse);
+        //then
+        mockMvc.perform(
+                        patch("/users/{userId}",userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .accept(MediaType.APPLICATION_JSON)
+                                .content(mapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("Password change accepted"));
+        verify(service).updatePassword(anyInt(),any(UserChangePasswordDTO.class));
+
+    }
+
+    @Test
+    void shouldUpdatePasswordWhenPasswordNull() throws Exception {
+        int userId = 1;
+
+        UserChangePasswordDTO request = UserChangePasswordDTO.builder()
+                .password(null)
+                .newPassword("newpassword123")
+                .build();
+
+        mockMvc.perform(
+                        patch("/users/{userId}", userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(mapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message")
+                        .value("password: This field is required"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void shouldUpdatePasswordWhenPasswordShort() throws Exception {
+        int userId = 1;
+
+        UserChangePasswordDTO request = UserChangePasswordDTO.builder()
+                .password("123")
+                .newPassword("newpassword123")
+                .build();
+
+        mockMvc.perform(
+                        patch("/users/{userId}", userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(mapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("password: Password should have at least 8 characters."));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void shouldUpdatePasswordWhenNewPasswordNull() throws Exception {
+        int userId = 1;
+
+        UserChangePasswordDTO request = UserChangePasswordDTO.builder()
+                .password("oldpassword123")
+                .newPassword(null)
+                .build();
+
+        mockMvc.perform(
+                        patch("/users/{userId}", userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(mapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("newPassword: This field is required"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void shouldUpdatePasswordWhenNewPasswordShort() throws Exception {
+        int userId = 1;
+
+        UserChangePasswordDTO request = UserChangePasswordDTO.builder()
+                .password("oldpassword123")
+                .newPassword("123")
+                .build();
+
+        mockMvc.perform(
+                        patch("/users/{userId}", userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(mapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message")
+                        .value("newPassword: The new password should have at least 8 characters."));
+
+        verifyNoInteractions(service);
+    }
+
     @Test
     void testDeleteUser() throws Exception {
         //given

@@ -1,9 +1,6 @@
 package com.bhrk.taskmanajemet.service.impl;
 
-import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserResponseDTO;
-import com.bhrk.taskmanajemet.entity.Task;
+import com.bhrk.taskmanajemet.dto.*;
 import com.bhrk.taskmanajemet.entity.User;
 import com.bhrk.taskmanajemet.exceptions.ResourceDuplicateException;
 import com.bhrk.taskmanajemet.exceptions.NotFoundException;
@@ -11,14 +8,13 @@ import com.bhrk.taskmanajemet.mapper.UserMapper;
 import com.bhrk.taskmanajemet.repository.UserRepository;
 import com.bhrk.taskmanajemet.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -66,6 +62,20 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUser(Integer userId) {
         repository.deleteById(userId);
+    }
+
+    @Override
+    public UserChangePasswordResponseDTO updatePassword(Integer userId, UserChangePasswordDTO userPassword) throws BadRequestException {
+        User userEntity = repository.findById(userId).orElseThrow(
+                () -> new NotFoundException("User not found"));
+        if (encoder.matches(userPassword.getPassword(), userEntity.getPassword())) {
+            String newPasswordEncode = encoder.encode(userPassword.getNewPassword());
+            userEntity.setPassword(newPasswordEncode);
+            repository.save(userEntity);
+        } else {
+            throw new BadRequestException("This Password it's incorrect");
+        }
+        return new UserChangePasswordResponseDTO("The password has been changed.");
     }
 
 }

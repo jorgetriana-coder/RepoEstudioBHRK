@@ -1,13 +1,10 @@
 package com.bhrk.taskmanajemet.service;
 
-import com.bhrk.taskmanajemet.dto.UserInfoRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserRequestDTO;
-import com.bhrk.taskmanajemet.dto.UserResponseDTO;
-import com.bhrk.taskmanajemet.exceptions.ResourceDuplicateException;
+import com.bhrk.taskmanajemet.dto.*;
+import jakarta.validation.Valid;
+import org.apache.coyote.BadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-
-import java.util.List;
 
 public interface UserService {
 
@@ -20,4 +17,6 @@ public interface UserService {
     UserResponseDTO updateUser(Integer userId, UserInfoRequestDTO Userinfo);
 
     void deleteUser(Integer userId);
+
+    UserChangePasswordResponseDTO updatePassword(@Valid Integer userId, UserChangePasswordDTO userPassword) throws BadRequestException;
 }
